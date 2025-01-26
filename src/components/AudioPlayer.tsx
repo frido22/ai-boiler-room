@@ -6,9 +6,11 @@ import WaveSurfer from 'wavesurfer.js';
 
 interface AudioPlayerProps {
   audioUrl: string;
+  loop?: boolean;
+  autoPlay?: boolean;
 }
 
-export default function AudioPlayer({ audioUrl }: AudioPlayerProps) {
+export default function AudioPlayer({ audioUrl, loop = false, autoPlay = false }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,12 +45,20 @@ export default function AudioPlayer({ audioUrl }: AudioPlayerProps) {
 
     // Handle finish
     wavesurfer.on('finish', () => {
-      setIsPlaying(false);
+      if (loop) {
+        wavesurfer.play(0); // Start playing from beginning if loop is enabled
+      } else {
+        setIsPlaying(false);
+      }
     });
 
     // Handle ready state
     wavesurfer.on('ready', () => {
       setIsLoading(false);
+      if (autoPlay || loop) {
+        wavesurfer.play();
+        setIsPlaying(true);
+      }
     });
 
     // Handle loading error
@@ -62,7 +72,7 @@ export default function AudioPlayer({ audioUrl }: AudioPlayerProps) {
     return () => {
       wavesurfer.destroy();
     };
-  }, [audioUrl]);
+  }, [audioUrl, loop, autoPlay]);
 
   const togglePlayPause = () => {
     if (!waveformRef.current) return;
@@ -79,19 +89,26 @@ export default function AudioPlayer({ audioUrl }: AudioPlayerProps) {
     <Box sx={{ width: '100%' }}>
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
+          <CircularProgress sx={{ color: 'white' }} />
         </Box>
       ) : (
         <>
           <Box ref={containerRef} sx={{ mb: 2 }} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton onClick={togglePlayPause} size="large">
+            <IconButton onClick={togglePlayPause} size="large" sx={{ color: 'white' }}>
               {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
             </IconButton>
             <LinearProgress 
               variant="determinate" 
               value={progress} 
-              sx={{ flexGrow: 1 }}
+              sx={{ 
+                flexGrow: 1, 
+                mx: 2,
+                bgcolor: 'rgba(255,255,255,0.2)',
+                '& .MuiLinearProgress-bar': {
+                  bgcolor: 'white'
+                }
+              }} 
             />
           </Box>
         </>

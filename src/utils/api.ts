@@ -56,12 +56,13 @@ export const generateMix = async (analysis: string) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Mix generation failed: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(`Mix generation failed: ${errorData.error || response.statusText}`);
     }
 
     const data = await response.json();
     console.log('Mix generation completed:', data);
-    return data.audioUrl;
+    return data; // Return the full response object which includes audioUrl
   } catch (error) {
     console.error('Error in generateMix:', error);
     throw error;

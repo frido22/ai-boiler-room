@@ -62,36 +62,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       path: tempFile
     });
 
-    // Transcribe with Whisper
+    // Get detailed transcription with Whisper v2-large (whisper-1)
     console.log('Transcribing with Whisper...');
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(tempFile),
       model: "whisper-1",
-      response_format: "json",
-      temperature: 0,
-      language: "en"
+      response_format: "verbose_json",  // Get more detailed output
+      temperature: 0.2,  // Slightly increase creativity for music description
+      language: "en",
+      prompt: "This is electronic dance music with beats and rhythms. Focus on describing musical elements like: BPM (beats per minute), kick drums, hi-hats, snares, cymbals, synthesizers, bass lines, melodies, and overall sound texture.",
+      timestamp_granularities: ["word", "segment"]  // Get word-level timing
     });
 
-    console.log('Transcription received:', transcription.text);
+    console.log('Transcription received:', transcription);
 
-    // Analyze with GPT-4
+    // Extract both text and timing information
+    const transcriptionText = transcription.text;
+    const segments = transcription.segments || [];
+    const words = transcription.words || [];
+
+    // Analyze with GPT-4 using both transcription and timing data
     const analysis = await openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
       messages: [
         {
           role: "system",
-          content: "You are a professional music producer analyzing techno music. Provide detailed insights about tempo, rhythm, sound design, arrangement, and mood."
+          content: `You are a professional music producer analyzing techno music. Focus on these aspects in your analysis:
+- Tempo and rhythm patterns (use timing data to estimate BPM)
+- Drum elements (kick, hi-hats, snares) and their timing patterns
+- Bass and synth sounds, including their characteristics and effects
+- Overall energy, groove, and danceability
+- Production quality, mix balance, and sound design
+- Musical structure and arrangement
+Provide specific, technical details in your analysis.`
         },
         {
           role: "user",
-          content: `Analyze this techno music recording. Here's the transcription: ${transcription.text}`
+          content: `Analyze this techno music recording. Here's what I hear in the audio: 
+
+Transcription: ${transcriptionText}
+
+Audio is divided into ${segments.length} segments with detailed word timing.
+${words.length > 0 ? `Contains ${words.length} timestamped words/sounds.` : ''}
+
+Provide a detailed analysis of the musical elements, using any timing patterns to help determine tempo and rhythmic elements.`
         }
       ],
       temperature: 0.7,
       max_tokens: 1000
     });
 
-    res.status(200).json({ analysis: analysis.choices[0].message.content });
+    // Return both the detailed transcription and analysis
+    res.status(200).json({ 
+      analysis: analysis.choices[0].message.content,
+      transcription: {
+        text: transcriptionText,
+        segments: segments,
+        words: words
+      }
+    });
   } catch (error) {
     console.error('Error processing audio:', error);
     res.status(500).json({ 
@@ -101,12 +130,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } finally {
     // Clean up temp file
     if (tempFile && fs.existsSync(tempFile)) {
-      try {
-        fs.unlinkSync(tempFile);
-        console.log('Cleaned up temporary file');
-      } catch (cleanupError) {
-        console.error('Error cleaning up temp file:', cleanupError);
-      }
+      fs.unlinkSync(tempFile);
+      console.log('Cleaned up temporary file');
     }
   }
 }
