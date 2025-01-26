@@ -51,7 +51,14 @@ export default function Home() {
     const speed = speedDescriptions[styleOptions.speed as keyof typeof speedDescriptions];
     const experimental = experimentalDescriptions[styleOptions.experimental as keyof typeof experimentalDescriptions];
 
-    return `Create a ${mood}. The track should be ${speed}. Additionally, ${experimental}. Make it cohesive and danceable while maintaining the dark techno aesthetic.`;
+    const basePrompt = `Create a ${mood}. The track should be ${speed}. Additionally, ${experimental}. Make it cohesive and danceable while maintaining the dark techno aesthetic.`;
+
+    // Add inspiration note if audio is present
+    if (audioBlob) {
+      return `${basePrompt} Use the provided audio as inspiration for the mood, energy, and sound design, but create something entirely new and original. Do not directly copy or extend the input audio - instead, create a fresh composition that captures a similar vibe while being its own unique piece.`;
+    }
+
+    return basePrompt;
   };
 
   const handleGenerateMix = async () => {
@@ -65,22 +72,31 @@ export default function Home() {
 
     try {
       const stylePrompt = generatePromptFromStyle();
-      setGenerationProgress('Sending request to MusicGen...');
+      setGenerationProgress('Converting audio and preparing request...');
       console.log('Generating mix with prompt:', stylePrompt);
       
       const result = await generateMix(stylePrompt, audioBlob);
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       
+      if (!result.audioUrl) {
+        throw new Error('No audio URL received from generation');
+      }
+
       console.log('Generated audio URL:', result.audioUrl);
       setGeneratedAudioUrl(result.audioUrl);
       setGenerationProgress(`Generation completed in ${duration} seconds!`);
       
       // Clear progress message after a delay
       setTimeout(() => setGenerationProgress(''), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Generation failed:', error);
-      setError('Failed to generate mix. Please try again.');
+      setError(error.message || 'Failed to generate mix. Please try again.');
       setGenerationProgress('');
+
+      // If there's a stats object in the error, show the duration
+      if (error.stats?.duration) {
+        setError(prev => `${prev} (Failed after ${error.stats.duration.toFixed(1)} seconds)`);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -153,15 +169,26 @@ export default function Home() {
                 {generationProgress}
               </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                This may take 15-30 seconds...
+                Generation usually takes 15-30 seconds...
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                The model is creating a new track inspired by your input
               </Typography>
             </Box>
           )}
 
           {error && (
-            <Typography color="error" sx={{ mt: 2, bgcolor: 'rgba(0,0,0,0.5)', p: 2, borderRadius: 1 }}>
-              {error}
-            </Typography>
+            <Box sx={{ 
+              mt: 2, 
+              bgcolor: 'rgba(255,0,0,0.1)', 
+              p: 2, 
+              borderRadius: 1,
+              border: '1px solid rgba(255,0,0,0.3)'
+            }}>
+              <Typography color="error">
+                {error}
+              </Typography>
+            </Box>
           )}
 
           {generatedAudioUrl && (

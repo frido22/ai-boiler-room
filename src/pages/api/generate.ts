@@ -37,6 +37,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Style prompt is required' });
     }
 
+    if (!REPLICATE_API_TOKEN) {
+      console.error('Replicate API token is missing');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     // Log environment check
     console.log('Environment check:', {
       hasReplicateToken: !!REPLICATE_API_TOKEN,
@@ -44,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Create input for music generation
-    console.log('Preparing MusicGen input...');
+    console.log(' Preparing MusicGen input...');
     const input: any = {
       model_version: "melody",
       prompt: stylePrompt,
@@ -54,14 +59,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       output_format: "wav",
     };
 
-    // If audio data is provided, add it as input_audio
+    // If audio data is provided, add it as input_audio but disable continuation
     if (audioData) {
-      console.log('Adding audio input to request...');
+      console.log(' Adding audio input for inspiration...');
       input.input_audio = audioData;
-      input.continuation = true;
+      // Set continuation to false since we want a new track inspired by the input
+      input.continuation = false;
     }
 
-    console.log('Sending request to MusicGen...', {
+    console.log(' Sending request to MusicGen...', {
       modelVersion: input.model_version,
       duration: input.duration,
       temperature: input.temperature,
@@ -78,16 +84,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const endTime = Date.now();
     const duration = (endTime - startTime) / 1000; // Convert to seconds
 
+    if (!output) {
+      console.error('No output received from MusicGen');
+      return res.status(500).json({ 
+        error: 'No output received from music generation',
+        stats: { duration, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString() }
+      });
+    }
+
+    if (typeof output !== 'string') {
+      console.error('Invalid output format from MusicGen:', typeof output);
+      return res.status(500).json({ 
+        error: 'Invalid output format from music generation',
+        stats: { duration, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString() }
+      });
+    }
+
+    if (!output.startsWith('http')) {
+      console.error('Invalid URL received from MusicGen');
+      return res.status(500).json({ 
+        error: 'Invalid URL received from music generation',
+        stats: { duration, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString() }
+      });
+    }
+
     console.log('Generation completed!', {
       duration: `${duration.toFixed(1)} seconds`,
       outputType: typeof output,
-      success: !!output
+      success: true,
+      url: output
     });
-
-    if (!output || typeof output !== 'string') {
-      console.error('Invalid output from Replicate:', output);
-      return res.status(500).json({ error: 'Failed to generate audio' });
-    }
 
     // Return the audio URL and generation stats
     res.status(200).json({ 

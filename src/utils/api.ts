@@ -11,12 +11,18 @@ export const generateMix = async (stylePrompt: string, audioBlob?: Blob) => {
     let audioData = null;
     if (audioBlob) {
       console.log('Converting audio blob to base64...');
-      audioData = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(audioBlob);
-      });
-      console.log('Audio conversion completed');
+      try {
+        audioData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('Failed to convert audio to base64'));
+          reader.readAsDataURL(audioBlob);
+        });
+        console.log('Audio conversion completed');
+      } catch (error) {
+        console.error('Failed to convert audio:', error);
+        throw new Error('Failed to process audio input');
+      }
     }
 
     console.log('Sending request to generation API...');
@@ -31,12 +37,18 @@ export const generateMix = async (stylePrompt: string, audioBlob?: Blob) => {
       }),
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(`Mix generation failed: ${errorData.error || response.statusText}`);
+      console.error('Generation API error:', data);
+      throw new Error(data.error || 'Failed to generate mix');
     }
 
-    const data = await response.json();
+    if (!data.audioUrl || typeof data.audioUrl !== 'string' || !data.audioUrl.startsWith('http')) {
+      console.error('Invalid audio URL in response:', data);
+      throw new Error('Invalid audio URL received');
+    }
+
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log('Mix generation completed:', {
       duration: `${duration} seconds`,
@@ -44,11 +56,12 @@ export const generateMix = async (stylePrompt: string, audioBlob?: Blob) => {
     });
     
     return data;
-  } catch (error) {
+  } catch (error: any) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.error('Error in generateMix:', {
       duration: `${duration} seconds`,
-      error
+      error: error.message,
+      stack: error.stack
     });
     throw error;
   }
