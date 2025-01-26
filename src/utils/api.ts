@@ -43,16 +43,29 @@ export const analyzeTrack = async (audioBlob: Blob) => {
   }
 };
 
-export const generateMix = async (analysis: string) => {
+export const generateMix = async (analysis: string, audioBlob?: Blob) => {
   console.log('Starting mix generation...');
   try {
+    // Convert audio blob to base64 if provided
+    let audioData = null;
+    if (audioBlob) {
+      audioData = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(audioBlob);
+      });
+    }
+
     console.log('Sending analysis to generation API:', analysis);
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ analysis }),
+      body: JSON.stringify({ 
+        analysis,
+        audioData
+      }),
     });
 
     if (!response.ok) {

@@ -19,8 +19,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { analysis } = req.body;
+    const { analysis, audioData } = req.body;
     console.log('Received analysis:', analysis);
+    console.log('Received audio data:', audioData ? 'Yes' : 'No');
 
     if (!analysis) {
       console.error('Analysis is missing from request body:', req.body);
@@ -33,23 +34,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tokenLength: REPLICATE_API_TOKEN?.length || 0
     });
 
-    // Create a prompt for music generation based on the analysis
-    const prompt = `Generate a techno track with these characteristics: ${analysis}. Make it energetic and danceable.`;
-    console.log('Generated prompt:', prompt);
+    // Create input for music generation
+    const input: any = {
+      model_version: "melody",
+      prompt: `Generate a techno track with these characteristics: ${analysis}. Make it energetic and danceable.`,
+      duration: 8,
+      temperature: 1,
+      continuation: false,
+      output_format: "wav",
+    };
 
-    // Run prediction
+    // If audio data is provided, add it as input_audio
+    if (audioData) {
+      input.input_audio = audioData;
+      input.continuation = true; // Enable continuation mode when audio input is provided
+    }
+
+    console.log('Generated input:', { ...input, input_audio: input.input_audio ? 'Present' : 'Not present' });
+
+    // Run prediction with the new model
     const output = await replicate.run(
       "meta/musicgen:7a76a8258b23fae65c5a22debb8841d1d7e816b75c2f24218cd2bd8573787906",
-      {
-        input: {
-          model_version: "melody",
-          prompt: prompt,
-          duration: 8,
-          temperature: 1,
-          continuation: false,
-          output_format: "wav",
-        }
-      }
+      { input }
     );
 
     console.log('Replicate output:', output);

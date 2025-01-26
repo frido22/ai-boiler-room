@@ -4,6 +4,7 @@ import { Box, Container, Typography, Button, CircularProgress } from '@mui/mater
 import AudioRecorder from '../components/AudioRecorder';
 import AudioPlayer from '../components/AudioPlayer';
 import VideoBackground from '../components/VideoBackground';
+import StyleSelector, { StyleOptions } from '../components/StyleSelector';
 import { analyzeTrack, generateMix } from '../utils/api';
 
 export default function Home() {
@@ -11,13 +12,45 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string>('');
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string>('');
-  const [transcription, setTranscription] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string>('');
+  const [styleOptions, setStyleOptions] = useState<StyleOptions>({
+    mood: 'dark',
+    speed: 'vibing',
+    experimental: 'glitch'
+  });
 
   const handleRecordingComplete = (blob: Blob) => {
     setAudioBlob(blob);
     setError('');
+  };
+
+  const generatePromptFromStyle = (analysis: string) => {
+    const moodDescriptions = {
+      dark: 'dark and industrial techno with heavy basslines and mechanical sounds',
+      very_dark: 'extremely dark ambient techno with ominous atmospheres and deep drones',
+      disturbing: 'horror-influenced techno with unsettling sounds and eerie atmospheres'
+    };
+
+    const speedDescriptions = {
+      vibing: 'moderate tempo around 125 BPM, steady and groovy',
+      cool: 'energetic tempo around 130 BPM with driving rhythm',
+      speed: 'fast and intense around 140 BPM with relentless energy'
+    };
+
+    const experimentalDescriptions = {
+      glitch: 'incorporate glitch elements, digital artifacts, and broken beat patterns',
+      acid: 'feature acid-style synthesizer lines with squelchy 303-like sounds',
+      drone: 'include hypnotic drone elements and layered atmospheric textures',
+      noise: 'mix in industrial noise elements and harsh textural sounds',
+      abstract: 'use experimental and abstract sound design elements'
+    };
+
+    const mood = moodDescriptions[styleOptions.mood as keyof typeof moodDescriptions];
+    const speed = speedDescriptions[styleOptions.speed as keyof typeof speedDescriptions];
+    const experimental = experimentalDescriptions[styleOptions.experimental as keyof typeof experimentalDescriptions];
+
+    return `Based on this analysis: ${analysis}\n\nCreate a ${mood}. The track should be ${speed}. Additionally, ${experimental}. Make it cohesive and danceable while maintaining the dark techno aesthetic.`;
   };
 
   const handleAnalyzeTrack = async () => {
@@ -30,8 +63,11 @@ export default function Home() {
       const result = await analyzeTrack(audioBlob);
       setAnalysisResult(result);
       
-      // Automatically start generation
-      handleGenerateMix(result);
+      // Generate enhanced prompt with style options
+      const enhancedPrompt = generatePromptFromStyle(result);
+      
+      // Automatically start generation with enhanced prompt
+      handleGenerateMix(enhancedPrompt);
     } catch (error) {
       console.error('Analysis failed:', error);
       setError('Failed to analyze track. Please try again.');
@@ -46,7 +82,7 @@ export default function Home() {
 
     try {
       console.log('Generating mix...');
-      const result = await generateMix(analysis);
+      const result = await generateMix(analysis, audioBlob);
       console.log('Generated audio URL:', result.audioUrl);
       setGeneratedAudioUrl(result.audioUrl);
     } catch (error) {
@@ -71,7 +107,7 @@ export default function Home() {
         <Box sx={{ 
           my: 4, 
           textAlign: 'center',
-          color: 'white', // Light text for dark background
+          color: 'white',
           position: 'relative',
           zIndex: 1
         }}>
@@ -89,6 +125,21 @@ export default function Home() {
           
           <Box sx={{ my: 4 }}>
             <AudioRecorder onRecordingComplete={handleRecordingComplete} />
+          </Box>
+
+          <Box sx={{ 
+            my: 4,
+            bgcolor: 'rgba(0,0,0,0.5)',
+            p: 3,
+            borderRadius: 2
+          }}>
+            <Typography variant="h6" gutterBottom>
+              Style Options
+            </Typography>
+            <StyleSelector 
+              value={styleOptions}
+              onChange={setStyleOptions}
+            />
           </Box>
 
           {audioBlob && (
@@ -118,23 +169,6 @@ export default function Home() {
             <Typography color="error" sx={{ mt: 2, bgcolor: 'rgba(0,0,0,0.5)', p: 2, borderRadius: 1 }}>
               {error}
             </Typography>
-          )}
-
-          {transcription && (
-            <Box sx={{ 
-              mt: 4, 
-              textAlign: 'left',
-              bgcolor: 'rgba(0,0,0,0.5)',
-              p: 3,
-              borderRadius: 2
-            }}>
-              <Typography variant="h5" gutterBottom>
-                Transcription
-              </Typography>
-              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                {transcription.text}
-              </Typography>
-            </Box>
           )}
 
           {analysisResult && (
@@ -167,7 +201,7 @@ export default function Home() {
               <Typography variant="body2" sx={{ mb: 2, opacity: 0.7 }}>
                 Audio URL: {generatedAudioUrl}
               </Typography>
-              <AudioPlayer audioUrl={generatedAudioUrl} loop={true} autoPlay={true} />
+              <AudioPlayer audioUrl={generatedAudioUrl} loop={true} />
             </Box>
           )}
         </Box>
