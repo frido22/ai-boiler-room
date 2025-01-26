@@ -121,6 +121,42 @@ export default function Home() {
     setRecordedAudioUrl('');
   };
 
+  // Add these state variables after the existing ones
+  const [isContinuousGeneration, setIsContinuousGeneration] = useState(false);
+  const [nextGeneratedAudioUrl, setNextGeneratedAudioUrl] = useState<string>('');
+
+  // Add this function after handleGenerateMix
+  const handleContinuousGeneration = async () => {
+    setIsContinuousGeneration(true);
+    
+    const generateNext = async () => {
+      try {
+        setGenerationProgress('Generating next segment...');
+        const stylePrompt = generatePromptFromStyle();
+        const result = await generateMix(stylePrompt, audioBlob);
+        
+        if (!result.audioUrl) {
+          throw new Error('No audio URL received from generation');
+        }
+        
+        setNextGeneratedAudioUrl(result.audioUrl);
+      } catch (error: any) {
+        console.error('Continuous generation failed:', error);
+        setError(error.message || 'Failed to generate next segment');
+        setIsContinuousGeneration(false);
+      }
+    };
+
+    // Start the first generation
+    generateNext();
+  };
+  
+  // Add a stop function
+  const handleStopContinuous = () => {
+    setIsContinuousGeneration(false);
+    setNextGeneratedAudioUrl('');
+  };
+
   return (
     <>
       <Head>
@@ -178,7 +214,16 @@ export default function Home() {
               </Typography>
               <AudioPlayer 
                 audioUrl={generatedAudioUrl} 
-                autoPlay={true} 
+                nextAudioUrl={nextGeneratedAudioUrl}
+                autoPlay={true}
+                isContinuous={isContinuousGeneration}
+                onTrackEnd={() => {
+                  // Swap current and next audio
+                  setGeneratedAudioUrl(nextGeneratedAudioUrl);
+                  setNextGeneratedAudioUrl('');
+                  // Generate next segment
+                  handleContinuousGeneration();
+                }}
               />
             </Box>
           )}
@@ -195,10 +240,19 @@ export default function Home() {
                   Recorded Audio
                 </Typography>
                 <AudioPlayer 
-                  audioUrl={recordedAudioUrl}
-                  autoPlay={false}
-                />
-              </Box>
+              audioUrl={generatedAudioUrl} 
+              nextAudioUrl={nextGeneratedAudioUrl}
+              autoPlay={true}
+              isContinuous={isContinuousGeneration}
+              onTrackEnd={() => {
+                // Swap current and next audio
+                setGeneratedAudioUrl(nextGeneratedAudioUrl);
+                setNextGeneratedAudioUrl('');
+                // Generate next segment
+                handleContinuousGeneration();
+              }}
+            />
+          </Box>
             )}
           </Box>
 
@@ -219,6 +273,22 @@ export default function Home() {
               }}
             >
               {isGenerating ? 'Generating...' : 'Generate Mix'}
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={isContinuousGeneration ? handleStopContinuous : handleContinuousGeneration}
+              disabled={isGenerating}
+              sx={{ 
+                py: 1.5,
+                px: 4,
+                bgcolor: isContinuousGeneration ? 'error.main' : 'success.main',
+                '&:hover': {
+                  bgcolor: isContinuousGeneration ? 'error.dark' : 'success.dark',
+                },
+              }}
+            >
+              {isContinuousGeneration ? 'Stop Continuous' : 'Start Continuous'}
             </Button>
 
             <Button

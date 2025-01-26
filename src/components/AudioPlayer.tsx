@@ -9,10 +9,13 @@ import Visualizer from './Visualizer';
 
 interface AudioPlayerProps {
   audioUrl: string;
+  nextAudioUrl?: string;
   autoPlay?: boolean;
+  onTrackEnd?: () => void;
+  isContinuous?: boolean;
 }
 
-const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, autoPlay = true }) => {
+const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl,   nextAudioUrl,  autoPlay = true,  onTrackEnd,  isContinuous = false,}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -21,30 +24,39 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, autoPlay = true }) 
   const [isLooping, setIsLooping] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const animationRef = useRef<number>();
+  const nextAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Add this effect to handle continuous playback
+  useEffect(() => {
+    if (!isContinuous || !nextAudioUrl) return;
 
+    const nextAudio = new Audio(nextAudioUrl);
+    nextAudioRef.current = nextAudio;
+    nextAudio.load();
+
+    return () => {
+      if (nextAudioRef.current) {
+        nextAudioRef.current.pause();
+        nextAudioRef.current = null;
+      }
+    };
+  }, [nextAudioUrl, isContinuous]);
+
+  // Modify the ended event listener in the existing audio effect
   useEffect(() => {
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
     
-    audio.addEventListener('loadedmetadata', () => {
-      setDuration(audio.duration);
-      console.log('🎵 Audio loaded:', {
-        duration: audio.duration,
-        src: audioUrl
-      });
-    });
-
     audio.addEventListener('ended', () => {
-      if (isLooping) {
+      if (isContinuous && nextAudioRef.current) {
+        nextAudioRef.current.play();
+        onTrackEnd?.();
+      } else if (isLooping) {
         audio.currentTime = 0;
         audio.play();
       } else {
         setIsPlaying(false);
       }
-    });
-
-    audio.addEventListener('error', (e) => {
-      console.error('❌ Audio error:', e);
     });
 
     // Set initial volume
