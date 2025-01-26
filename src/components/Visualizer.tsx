@@ -9,7 +9,7 @@ interface VisualizerProps {
 
 const Visualizer: React.FC<VisualizerProps> = ({ audioUrl, isPlaying }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const wavesurferRef = useRef<WaveSurfer>();
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer>();
   const sceneRef = useRef<THREE.Scene>();
@@ -20,7 +20,10 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioUrl, isPlaying }) => {
   // Initialize WaveSurfer
   useEffect(() => {
     if (!containerRef.current) return;
-
+  
+    // Clear any existing content
+    containerRef.current.innerHTML = '';
+  
     const wavesurfer = WaveSurfer.create({
       container: containerRef.current,
       waveColor: '#4a9eff',
@@ -35,15 +38,26 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioUrl, isPlaying }) => {
       normalize: true,
       partialRender: true,
     });
-
+  
     wavesurfer.load(audioUrl);
     wavesurferRef.current = wavesurfer;
-
+  
+    // Handle cleanup
     return () => {
-      wavesurfer.destroy();
+      if (wavesurferRef.current) {
+        try {
+          // Cancel any ongoing operations
+          wavesurferRef.current.pause();
+          // Destroy the instance
+          // wavesurferRef.current.destroy();
+          // Clear the reference
+          // wavesurferRef.current = null;
+        } catch (error) {
+          console.log('Error destroying wavesurfer:', error);
+        }
+      }
     };
   }, [audioUrl]);
-
   // Handle play/pause
   useEffect(() => {
     const wavesurfer = wavesurferRef.current;

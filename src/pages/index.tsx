@@ -55,7 +55,7 @@ export default function Home() {
     const speed = speedDescriptions[styleOptions.speed as keyof typeof speedDescriptions];
     const experimental = experimentalDescriptions[styleOptions.experimental as keyof typeof experimentalDescriptions];
 
-    const basePrompt = `Create a ${mood}. The track should be ${speed}. Additionally, ${experimental}. Make it cohesive and danceable while maintaining the dark techno aesthetic.`;
+    const basePrompt = `Create a ${mood}. The track should be ${speed}. Additionally, ${experimental}. Make it cohesive and danceable while maintaining the dark techno aesthetic. Make the clip loopable so that the end of the clip matches the begining to ensure that it has a strong rhythmic foundation.`;
 
     // Add inspiration note if audio is present
     if (audioBlob) {
