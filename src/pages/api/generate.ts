@@ -51,20 +51,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create input for music generation
     console.log(' Preparing MusicGen input...');
     const input: any = {
-      model_version: "melody",
+      model_version: "stereo-large", // Default to stereo-large for non-audio generation
       prompt: stylePrompt,
       duration: 8,
       temperature: 1,
       continuation: false,
-      output_format: "wav",
+      output_format: "mp3",
+      normalization_strategy: "peak",
+      classifier_free_guidance: 3,
+      top_k: 250,
+      top_p: 0
     };
 
-    // If audio data is provided, add it as input_audio but disable continuation
+    // If audio data is provided, switch to stereo-melody-large model
     if (audioData) {
       console.log(' Adding audio input for inspiration...');
+      input.model_version = "stereo-melody-large"; // Use melody model when we have audio input
       input.input_audio = audioData;
-      // Set continuation to false since we want a new track inspired by the input
       input.continuation = false;
+      input.continuation_start = 0;
+      console.log('Using stereo-melody-large model for audio input');
     }
 
     console.log(' Sending request to MusicGen...', {
@@ -77,7 +83,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Run prediction with MusicGen
     const output = await replicate.run(
-      "meta/musicgen:7a76a8258b23fae65c5a22debb8841d1d7e816b75c2f24218cd2bd8573787906",
+      "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
       { input }
     );
 

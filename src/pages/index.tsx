@@ -19,11 +19,12 @@ export default function Home() {
     experimental: 'glitch'
   });
 
-  const handleRecordingComplete = (blob: Blob) => {
+  const handleRecordingComplete = async (blob: Blob) => {
     setAudioBlob(blob);
-    setError('');
-    // Generate mix immediately after recording
-    handleGenerateMix();
+    // Wait a short moment for the audio to be properly saved
+    setTimeout(() => {
+      handleGenerateMix();
+    }, 500);
   };
 
   const generatePromptFromStyle = () => {
@@ -62,16 +63,24 @@ export default function Home() {
   };
 
   const handleGenerateMix = async () => {
-    if (!audioBlob) return;
+    if (!audioBlob) {
+      setError('Please record some audio first');
+      return;
+    }
     
-    setIsGenerating(true);
-    setError('');
-    setGenerationProgress('Starting music generation...');
-
-    const startTime = Date.now();
+    if (isGenerating) {
+      setError('Generation already in progress...');
+      return;
+    }
 
     try {
+      setIsGenerating(true);
+      setError('');
+      setGenerationProgress('Starting music generation...');
+
+      const startTime = Date.now();
       const stylePrompt = generatePromptFromStyle();
+      
       setGenerationProgress('Converting audio and preparing request...');
       console.log('Generating mix with prompt:', stylePrompt);
       
@@ -152,8 +161,24 @@ export default function Home() {
             />
           </Box>
 
-          <Box sx={{ my: 4 }}>
+          <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <AudioRecorder onRecordingComplete={handleRecordingComplete} />
+            
+            {audioBlob && !isGenerating && !generatedAudioUrl && (
+              <Button
+                variant="contained"
+                onClick={handleGenerateMix}
+                disabled={isGenerating}
+                sx={{
+                  mt: 2,
+                  bgcolor: 'primary.main',
+                  '&:hover': { bgcolor: 'primary.dark' },
+                  '&:disabled': { bgcolor: 'rgba(255,255,255,0.1)' }
+                }}
+              >
+                Generate Mix
+              </Button>
+            )}
           </Box>
 
           {isGenerating && (
@@ -191,17 +216,20 @@ export default function Home() {
             </Box>
           )}
 
-          {generatedAudioUrl && (
-            <Box sx={{ 
-              mt: 4,
-              bgcolor: 'rgba(0,0,0,0.5)',
-              p: 3,
-              borderRadius: 2
-            }}>
-              <Typography variant="h5" gutterBottom>
-                Generated Track
-              </Typography>
-              <AudioPlayer audioUrl={generatedAudioUrl} loop={true} />
+          {generatedAudioUrl && !isGenerating && (
+            <Box sx={{ mt: 4, width: '100%', maxWidth: 600 }}>
+              <AudioPlayer audioUrl={generatedAudioUrl} />
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setGeneratedAudioUrl('');
+                  setAudioBlob(null);
+                  setError('');
+                }}
+                sx={{ mt: 2, color: 'white', borderColor: 'white' }}
+              >
+                Start Over
+              </Button>
             </Box>
           )}
         </Box>
