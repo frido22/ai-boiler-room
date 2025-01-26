@@ -28,11 +28,10 @@ export default function Home() {
     try {
       console.log('Starting track analysis...');
       const result = await analyzeTrack(audioBlob);
-      setAnalysisResult(result.analysis);
-      setTranscription(result.transcription);
+      setAnalysisResult(result);
       
       // Automatically start generation
-      handleGenerateMix(result.analysis);
+      handleGenerateMix(result);
     } catch (error) {
       console.error('Analysis failed:', error);
       setError('Failed to analyze track. Please try again.');

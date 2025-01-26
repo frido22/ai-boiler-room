@@ -46,7 +46,7 @@ export const analyzeTrack = async (audioBlob: Blob) => {
 export const generateMix = async (analysis: string) => {
   console.log('Starting mix generation...');
   try {
-    console.log('Sending analysis to generation API...');
+    console.log('Sending analysis to generation API:', analysis);
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
