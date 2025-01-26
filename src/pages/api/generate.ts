@@ -49,7 +49,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Create input for music generation
-    console.log(' Preparing MusicGen input...');
+    console.log(' Preparing MusicGen input...', {
+      timestamp: new Date().toISOString()
+    });
+
     const input: any = {
       model_version: "stereo-large", // Default to stereo-large for non-audio generation
       prompt: stylePrompt,
@@ -65,12 +68,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // If audio data is provided, switch to stereo-melody-large model
     if (audioData) {
-      console.log(' Adding audio input for inspiration...');
-      input.model_version = "stereo-melody-large"; // Use melody model when we have audio input
+      console.log(' Processing audio input...', {
+        audioDataLength: audioData.length,
+        audioDataPrefix: audioData.substring(0, 50) + '...',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Ensure we're using the correct model version for audio input
+      input.model_version = "stereo-melody-large";
+      
+      // Add the audio data
+      if (!audioData.startsWith('data:')) {
+        console.error(' Invalid audio data format', {
+          prefix: audioData.substring(0, 20),
+          timestamp: new Date().toISOString()
+        });
+        return res.status(400).json({ error: 'Invalid audio data format' });
+      }
+      
       input.input_audio = audioData;
       input.continuation = false;
       input.continuation_start = 0;
-      console.log('Using stereo-melody-large model for audio input');
+      
+      console.log(' Audio input configured:', {
+        modelVersion: input.model_version,
+        hasAudio: true,
+        continuation: input.continuation,
+        audioDataLength: input.input_audio.length,
+        timestamp: new Date().toISOString()
+      });
     }
 
     console.log(' Sending request to MusicGen...', {
@@ -78,58 +104,58 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       duration: input.duration,
       temperature: input.temperature,
       continuation: input.continuation,
-      hasAudio: !!input.input_audio
+      hasAudio: !!input.input_audio,
+      audioDataLength: input.input_audio ? input.input_audio.length : 0,
+      timestamp: new Date().toISOString()
     });
 
     // Run prediction with MusicGen
-    const output = await replicate.run(
-      "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
-      { input }
-    );
+    try {
+      const output = await replicate.run(
+        "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+        { input }
+      );
 
-    const endTime = Date.now();
-    const duration = (endTime - startTime) / 1000; // Convert to seconds
-
-    if (!output) {
-      console.error('No output received from MusicGen');
-      return res.status(500).json({ 
-        error: 'No output received from music generation',
-        stats: { duration, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString() }
+      console.log(' MusicGen response received:', {
+        outputType: typeof output,
+        outputValue: output,
+        timestamp: new Date().toISOString()
       });
-    }
 
-    if (typeof output !== 'string') {
-      console.error('Invalid output format from MusicGen:', typeof output);
-      return res.status(500).json({ 
-        error: 'Invalid output format from music generation',
-        stats: { duration, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString() }
-      });
-    }
-
-    if (!output.startsWith('http')) {
-      console.error('Invalid URL received from MusicGen');
-      return res.status(500).json({ 
-        error: 'Invalid URL received from music generation',
-        stats: { duration, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString() }
-      });
-    }
-
-    console.log('Generation completed!', {
-      duration: `${duration.toFixed(1)} seconds`,
-      outputType: typeof output,
-      success: true,
-      url: output
-    });
-
-    // Return the audio URL and generation stats
-    res.status(200).json({ 
-      audioUrl: output,
-      stats: {
-        duration: duration,
-        startTime: new Date(startTime).toISOString(),
-        endTime: new Date(endTime).toISOString(),
+      if (!output) {
+        throw new Error('No output received from MusicGen');
       }
-    });
+
+      const endTime = Date.now();
+      const duration = (endTime - startTime) / 1000; // Convert to seconds
+
+      console.log('Generation completed!', {
+        duration: `${duration.toFixed(1)} seconds`,
+        outputType: typeof output,
+        success: true,
+        url: output,
+        timestamp: new Date().toISOString()
+      });
+
+      // Return the audio URL and generation stats
+      return res.status(200).json({ 
+        audioUrl: output,
+        stats: {
+          duration: duration,
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date(endTime).toISOString(),
+          modelVersion: input.model_version,
+          hasAudioInput: !!input.input_audio
+        }
+      });
+    } catch (error: any) {
+      console.error(' MusicGen API error:', {
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
   } catch (error: any) {
     const endTime = Date.now();
     const duration = (endTime - startTime) / 1000;
@@ -137,7 +163,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Error in generate API:', {
       error: error.message,
       duration: `${duration.toFixed(1)} seconds`,
-      stack: error.stack
+      stack: error.stack,
+      timestamp: new Date().toISOString()
     });
     
     res.status(500).json({ 

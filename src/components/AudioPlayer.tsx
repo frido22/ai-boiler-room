@@ -1,118 +1,192 @@
-import { useEffect, useRef, useState } from 'react';
-import { Box, IconButton, LinearProgress, CircularProgress } from '@mui/material';
+import React, { useState, useRef, useEffect } from 'react';
+import { Box, IconButton, Slider, Typography } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-import WaveSurfer from 'wavesurfer.js';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import LoopIcon from '@mui/icons-material/Loop';
+import Visualizer from './Visualizer';
 
 interface AudioPlayerProps {
   audioUrl: string;
-  loop?: boolean;
   autoPlay?: boolean;
 }
 
-export default function AudioPlayer({ audioUrl, loop = false, autoPlay = false }: AudioPlayerProps) {
+const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, autoPlay = true }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const waveformRef = useRef<WaveSurfer>();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.8);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isLooping, setIsLooping] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const animationRef = useRef<number>();
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Initialize WaveSurfer
-    const wavesurfer = WaveSurfer.create({
-      container: containerRef.current,
-      waveColor: '#4a9eff',
-      progressColor: '#1e50ff',
-      cursorColor: '#ffffff',
-      barWidth: 2,
-      barRadius: 3,
-      cursorWidth: 1,
-      height: 100,
-      barGap: 2,
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    
+    audio.addEventListener('loadedmetadata', () => {
+      setDuration(audio.duration);
+      console.log('🎵 Audio loaded:', {
+        duration: audio.duration,
+        src: audioUrl
+      });
     });
 
-    // Load audio
-    wavesurfer.load(audioUrl);
-
-    // Update progress
-    wavesurfer.on('audioprocess', () => {
-      const currentTime = wavesurfer.getCurrentTime();
-      const duration = wavesurfer.getDuration();
-      setProgress((currentTime / duration) * 100);
-    });
-
-    // Handle finish
-    wavesurfer.on('finish', () => {
-      if (loop) {
-        wavesurfer.play(0); // Start playing from beginning if loop is enabled
+    audio.addEventListener('ended', () => {
+      if (isLooping) {
+        audio.currentTime = 0;
+        audio.play();
       } else {
         setIsPlaying(false);
       }
     });
 
-    // Handle ready state
-    wavesurfer.on('ready', () => {
-      setIsLoading(false);
-      if (autoPlay || loop) {
-        wavesurfer.play();
+    audio.addEventListener('error', (e) => {
+      console.error('❌ Audio error:', e);
+    });
+
+    // Set initial volume
+    audio.volume = volume;
+    audio.loop = isLooping;
+
+    // Auto-play if enabled
+    if (autoPlay) {
+      audio.play().then(() => {
         setIsPlaying(true);
-      }
-    });
-
-    // Handle loading error
-    wavesurfer.on('error', (error) => {
-      console.error('WaveSurfer error:', error);
-      setIsLoading(false);
-    });
-
-    waveformRef.current = wavesurfer;
+        console.log('▶️ Auto-playing audio');
+      }).catch(error => {
+        console.error('❌ Auto-play failed:', error);
+      });
+    }
 
     return () => {
-      wavesurfer.destroy();
+      audio.pause();
+      audio.src = '';
+      cancelAnimationFrame(animationRef.current!);
     };
-  }, [audioUrl, loop, autoPlay]);
+  }, [audioUrl, autoPlay]);
 
-  const togglePlayPause = () => {
-    if (!waveformRef.current) return;
+  const updateProgress = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+      animationRef.current = requestAnimationFrame(updateProgress);
+    }
+  };
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
 
     if (isPlaying) {
-      waveformRef.current.pause();
+      audioRef.current.pause();
+      cancelAnimationFrame(animationRef.current!);
     } else {
-      waveformRef.current.play();
+      audioRef.current.play();
+      animationRef.current = requestAnimationFrame(updateProgress);
     }
     setIsPlaying(!isPlaying);
   };
 
+  const toggleMute = () => {
+    if (!audioRef.current) return;
+    
+    if (isMuted) {
+      audioRef.current.volume = volume;
+    } else {
+      audioRef.current.volume = 0;
+    }
+    setIsMuted(!isMuted);
+  };
+
+  const toggleLoop = () => {
+    if (!audioRef.current) return;
+    audioRef.current.loop = !isLooping;
+    setIsLooping(!isLooping);
+  };
+
+  const handleTimeChange = (event: Event, newValue: number | number[]) => {
+    if (!audioRef.current) return;
+    const time = newValue as number;
+    audioRef.current.currentTime = time;
+    setCurrentTime(time);
+  };
+
+  const handleVolumeChange = (event: Event, newValue: number | number[]) => {
+    if (!audioRef.current) return;
+    const vol = newValue as number;
+    audioRef.current.volume = vol;
+    setVolume(vol);
+    if (vol === 0) {
+      setIsMuted(true);
+    } else if (isMuted) {
+      setIsMuted(false);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   return (
-    <Box sx={{ width: '100%' }}>
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress sx={{ color: 'white' }} />
-        </Box>
-      ) : (
-        <>
-          <Box ref={containerRef} sx={{ mb: 2 }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton onClick={togglePlayPause} size="large" sx={{ color: 'white' }}>
-              {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-            </IconButton>
-            <LinearProgress 
-              variant="determinate" 
-              value={progress} 
-              sx={{ 
-                flexGrow: 1, 
-                mx: 2,
-                bgcolor: 'rgba(255,255,255,0.2)',
-                '& .MuiLinearProgress-bar': {
-                  bgcolor: 'white'
-                }
-              }} 
-            />
-          </Box>
-        </>
-      )}
+    <Box sx={{
+      width: '100%',
+      bgcolor: 'rgba(0,0,0,0.3)',
+      p: 3,
+      borderRadius: 2,
+      border: '1px solid rgba(255,255,255,0.1)'
+    }}>
+      <Box sx={{ mb: 2, height: 100 }}>
+        <Visualizer audioUrl={audioUrl} isPlaying={isPlaying} />
+      </Box>
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <IconButton onClick={togglePlay} sx={{ color: 'white' }}>
+          {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+        </IconButton>
+        
+        <Typography sx={{ color: 'white', minWidth: 45 }}>
+          {formatTime(currentTime)}
+        </Typography>
+
+        <Slider
+          value={currentTime}
+          max={duration}
+          onChange={handleTimeChange}
+          sx={{ color: 'primary.main' }}
+        />
+
+        <Typography sx={{ color: 'white', minWidth: 45 }}>
+          {formatTime(duration)}
+        </Typography>
+
+        <IconButton onClick={toggleLoop} sx={{ 
+          color: isLooping ? 'primary.main' : 'white',
+        }}>
+          <LoopIcon />
+        </IconButton>
+      </Box>
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <IconButton onClick={toggleMute} sx={{ color: 'white' }}>
+          {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+        </IconButton>
+        
+        <Slider
+          value={isMuted ? 0 : volume}
+          max={1}
+          step={0.01}
+          onChange={handleVolumeChange}
+          sx={{ 
+            color: 'primary.main',
+            width: 100
+          }}
+        />
+      </Box>
     </Box>
   );
-}
+};
+
+export default AudioPlayer;

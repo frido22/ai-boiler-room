@@ -18,9 +18,12 @@ export default function Home() {
     speed: 'vibing',
     experimental: 'glitch'
   });
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string>('');
 
   const handleRecordingComplete = async (blob: Blob) => {
     setAudioBlob(blob);
+    const url = URL.createObjectURL(blob);
+    setRecordedAudioUrl(url);
     // Wait a short moment for the audio to be properly saved
     setTimeout(() => {
       handleGenerateMix();
@@ -111,6 +114,13 @@ export default function Home() {
     }
   };
 
+  const handleStartOver = () => {
+    setGeneratedAudioUrl('');
+    setAudioBlob(null);
+    setError('');
+    setRecordedAudioUrl('');
+  };
+
   return (
     <>
       <Head>
@@ -121,23 +131,22 @@ export default function Home() {
 
       <VideoBackground />
 
-      <Container maxWidth="md">
+      <Container maxWidth="lg">
         <Box sx={{ 
-          my: 4, 
-          textAlign: 'center',
-          color: 'white',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
           position: 'relative',
-          zIndex: 1
+          zIndex: 1,
+          py: 4
         }}>
-          <Typography 
-            variant="h2" 
-            component="h1" 
-            gutterBottom
-            sx={{ 
-              fontWeight: 'bold',
-              textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
-            }}
-          >
+          <Typography variant="h2" component="h1" gutterBottom sx={{ 
+            color: 'white',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            mb: 4
+          }}>
             AI Boiler Room
           </Typography>
           
@@ -147,7 +156,7 @@ export default function Home() {
             p: 3,
             borderRadius: 2
           }}>
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
               Style Options
             </Typography>
             <StyleSelector 
@@ -161,76 +170,83 @@ export default function Home() {
             />
           </Box>
 
-          <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          {/* Audio Player */}
+          {generatedAudioUrl && (
+            <Box sx={{ width: '100%', maxWidth: 800, mb: 4 }}>
+              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+                Generated Track
+              </Typography>
+              <AudioPlayer 
+                audioUrl={generatedAudioUrl} 
+                autoPlay={true} 
+              />
+            </Box>
+          )}
+
+          {/* Record Audio Section */}
+          <Box sx={{ width: '100%', maxWidth: 800, mb: 4 }}>
+            <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+              Record Audio Input
+            </Typography>
             <AudioRecorder onRecordingComplete={handleRecordingComplete} />
-            
-            {audioBlob && !isGenerating && !generatedAudioUrl && (
-              <Button
-                variant="contained"
-                onClick={handleGenerateMix}
-                disabled={isGenerating}
-                sx={{
-                  mt: 2,
-                  bgcolor: 'primary.main',
-                  '&:hover': { bgcolor: 'primary.dark' },
-                  '&:disabled': { bgcolor: 'rgba(255,255,255,0.1)' }
-                }}
-              >
-                Generate Mix
-              </Button>
+            {recordedAudioUrl && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle1" sx={{ color: 'white', mb: 1 }}>
+                  Recorded Audio
+                </Typography>
+                <AudioPlayer 
+                  audioUrl={recordedAudioUrl}
+                  autoPlay={false}
+                />
+              </Box>
             )}
           </Box>
 
-          {isGenerating && (
-            <Box sx={{ 
-              mt: 4, 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 2
-            }}>
-              <CircularProgress sx={{ color: 'white' }} />
-              <Typography variant="body1" sx={{ color: 'white' }}>
-                {generationProgress}
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                Generation usually takes 15-30 seconds...
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)' }}>
-                The model is creating a new track inspired by your input
-              </Typography>
-            </Box>
-          )}
+          {/* Generate Button */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="contained"
+              onClick={handleGenerateMix}
+              disabled={isGenerating}
+              startIcon={isGenerating ? <CircularProgress size={20} /> : null}
+              sx={{ 
+                py: 1.5,
+                px: 4,
+                bgcolor: 'primary.main',
+                '&:hover': {
+                  bgcolor: 'primary.dark',
+                },
+              }}
+            >
+              {isGenerating ? 'Generating...' : 'Generate Mix'}
+            </Button>
 
+            <Button
+              variant="outlined"
+              onClick={handleStartOver}
+              sx={{ 
+                py: 1.5,
+                px: 4,
+                color: 'white',
+                borderColor: 'rgba(255,255,255,0.3)',
+                '&:hover': {
+                  borderColor: 'white',
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                },
+              }}
+            >
+              Start Over
+            </Button>
+          </Box>
+
+          {/* Error Message */}
           {error && (
-            <Box sx={{ 
-              mt: 2, 
-              bgcolor: 'rgba(255,0,0,0.1)', 
-              p: 2, 
-              borderRadius: 1,
-              border: '1px solid rgba(255,0,0,0.3)'
-            }}>
-              <Typography color="error">
-                {error}
-              </Typography>
-            </Box>
-          )}
-
-          {generatedAudioUrl && !isGenerating && (
-            <Box sx={{ mt: 4, width: '100%', maxWidth: 600 }}>
-              <AudioPlayer audioUrl={generatedAudioUrl} />
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  setGeneratedAudioUrl('');
-                  setAudioBlob(null);
-                  setError('');
-                }}
-                sx={{ mt: 2, color: 'white', borderColor: 'white' }}
-              >
-                Start Over
-              </Button>
-            </Box>
+            <Typography 
+              color="error" 
+              sx={{ mt: 2 }}
+            >
+              {error}
+            </Typography>
           )}
         </Box>
       </Container>

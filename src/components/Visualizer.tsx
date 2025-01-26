@@ -1,21 +1,65 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
+import WaveSurfer from 'wavesurfer.js';
 import * as THREE from 'three';
 
 interface VisualizerProps {
-  audioData?: Uint8Array;
+  audioUrl: string;
+  isPlaying: boolean;
 }
 
-const Visualizer = ({ audioData }: VisualizerProps) => {
+const Visualizer: React.FC<VisualizerProps> = ({ audioUrl, isPlaying }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wavesurferRef = useRef<WaveSurfer>();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer>();
   const sceneRef = useRef<THREE.Scene>();
   const cameraRef = useRef<THREE.PerspectiveCamera>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const particlesRef = useRef<THREE.Points>();
+  const analyzerRef = useRef<AnalyserNode>();
+  const animationFrameRef = useRef<number>();
 
+  // Initialize WaveSurfer
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Initialize Three.js scene
+    const wavesurfer = WaveSurfer.create({
+      container: containerRef.current,
+      waveColor: '#4a9eff',
+      progressColor: '#1e50ff',
+      cursorColor: '#ffffff',
+      barWidth: 2,
+      barRadius: 3,
+      cursorWidth: 1,
+      height: 100,
+      barGap: 2,
+      responsive: true,
+      normalize: true,
+      partialRender: true,
+    });
+
+    wavesurfer.load(audioUrl);
+    wavesurferRef.current = wavesurfer;
+
+    return () => {
+      wavesurfer.destroy();
+    };
+  }, [audioUrl]);
+
+  // Handle play/pause
+  useEffect(() => {
+    const wavesurfer = wavesurferRef.current;
+    if (!wavesurfer) return;
+
+    if (isPlaying) {
+      wavesurfer.play();
+    } else {
+      wavesurfer.pause();
+    }
+  }, [isPlaying]);
+
+  // Initialize Three.js scene
+  useEffect(() => {
+    if (!containerRef.current) return;
+
     sceneRef.current = new THREE.Scene();
     
     cameraRef.current = new THREE.PerspectiveCamera(
@@ -58,16 +102,16 @@ const Visualizer = ({ audioData }: VisualizerProps) => {
       blending: THREE.AdditiveBlending
     });
 
-    particlesRef.current = new THREE.Points(geometry, material);
-    sceneRef.current.add(particlesRef.current);
+    const particles = new THREE.Points(geometry, material);
+    sceneRef.current.add(particles);
 
     // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
 
-      if (particlesRef.current) {
-        particlesRef.current.rotation.x += 0.001;
-        particlesRef.current.rotation.y += 0.002;
+      if (particles) {
+        particles.rotation.x += 0.001;
+        particles.rotation.y += 0.002;
       }
 
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -85,20 +129,11 @@ const Visualizer = ({ audioData }: VisualizerProps) => {
     };
   }, []);
 
-  // Update visualization based on audio data
-  useEffect(() => {
-    if (!audioData || !particlesRef.current) return;
-
-    const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-    for (let i = 0; i < positions.length; i += 3) {
-      const audioIndex = Math.floor(i / 3) % audioData.length;
-      const scale = audioData[audioIndex] / 128.0;
-      positions[i + 1] += (scale - 1) * 0.1;
-    }
-    particlesRef.current.geometry.attributes.position.needsUpdate = true;
-  }, [audioData]);
-
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+    </div>
+  );
 };
 
 export default Visualizer;
