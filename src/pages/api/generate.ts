@@ -19,6 +19,26 @@ const replicate = new Replicate({
   auth: REPLICATE_API_TOKEN || '',
 });
 
+// Function to get audio duration from base64 WebM
+async function getAudioDuration(audioData: string): Promise<number> {
+  try {
+    // Extract the actual base64 data after the data URL prefix
+    const base64Data = audioData.split(',')[1];
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    // WebM duration is typically stored in the first few bytes
+    // For simplicity, we'll estimate 1KB of WebM data ≈ 1 second of audio
+    // This is a rough estimation - for more accuracy we'd need to parse the WebM container
+    const estimatedDuration = Math.ceil(buffer.length / 1024);
+    
+    // Ensure minimum duration of 8 seconds and maximum of 30 seconds
+    return Math.min(Math.max(estimatedDuration, 8), 30);
+  } catch (error) {
+    console.error('Error calculating audio duration:', error);
+    return 8; // Default to 8 seconds if calculation fails
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -48,6 +68,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tokenLength: REPLICATE_API_TOKEN?.length || 0
     });
 
+    // Calculate duration based on input audio if present
+    const duration = audioData ? await getAudioDuration(audioData) : 8;
+    console.log('Calculated duration:', duration, 'seconds');
+
     // Create input for music generation
     console.log(' Preparing MusicGen input...', {
       timestamp: new Date().toISOString()
@@ -56,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const input: any = {
       model_version: "stereo-large", // Default to stereo-large for non-audio generation
       prompt: stylePrompt,
-      duration: 8,
+      duration: duration,
       temperature: 1,
       continuation: false,
       output_format: "mp3",
@@ -95,6 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hasAudio: true,
         continuation: input.continuation,
         audioDataLength: input.input_audio.length,
+        duration: duration,
         timestamp: new Date().toISOString()
       });
     }
@@ -127,10 +152,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const endTime = Date.now();
-      const duration = (endTime - startTime) / 1000; // Convert to seconds
+      const generationDuration = (endTime - startTime) / 1000; // Convert to seconds
 
       console.log('Generation completed!', {
-        duration: `${duration.toFixed(1)} seconds`,
+        duration: `${generationDuration.toFixed(1)} seconds`,
         outputType: typeof output,
         success: true,
         url: output,
@@ -141,7 +166,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ 
         audioUrl: output,
         stats: {
-          duration: duration,
+          duration: generationDuration,
           startTime: new Date(startTime).toISOString(),
           endTime: new Date(endTime).toISOString(),
           modelVersion: input.model_version,
@@ -158,11 +183,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } catch (error: any) {
     const endTime = Date.now();
-    const duration = (endTime - startTime) / 1000;
+    const generationDuration = (endTime - startTime) / 1000;
 
     console.error('Error in generate API:', {
       error: error.message,
-      duration: `${duration.toFixed(1)} seconds`,
+      duration: `${generationDuration.toFixed(1)} seconds`,
       stack: error.stack,
       timestamp: new Date().toISOString()
     });
@@ -170,7 +195,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ 
       error: error.message || 'Failed to generate mix',
       stats: {
-        duration: duration,
+        duration: generationDuration,
         startTime: new Date(startTime).toISOString(),
         endTime: new Date(endTime).toISOString(),
         error: true
